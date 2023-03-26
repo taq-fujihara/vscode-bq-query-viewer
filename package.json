@@ -1,8 +1,13 @@
 {
-  "name": "hello-world",
-  "displayName": "Hello World",
+  "name": "bq-query-viewer",
+  "displayName": "BQ Query Viewer",
   "description": "",
+  "publisher": "taq",
   "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/taq-fujihara/vscode-bq-query-viewer.git"
+  },
   "engines": {
     "vscode": "^1.76.0"
   },
@@ -14,8 +19,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "hello-world.helloWorld",
-        "title": "Hello World"
+        "command": "bq-query-viewer.get-sql",
+        "title": "BQ Query Viewer: Get SQL by Job ID"
       }
     ]
   },
@@ -28,16 +33,19 @@
     "test": "node ./out/test/runTest.js"
   },
   "devDependencies": {
-    "@types/vscode": "^1.76.0",
     "@types/glob": "^8.1.0",
     "@types/mocha": "^10.0.1",
     "@types/node": "16.x",
+    "@types/vscode": "^1.76.0",
     "@typescript-eslint/eslint-plugin": "^5.56.0",
     "@typescript-eslint/parser": "^5.56.0",
+    "@vscode/test-electron": "^2.3.0",
     "eslint": "^8.36.0",
     "glob": "^8.1.0",
     "mocha": "^10.2.0",
-    "typescript": "^4.9.5",
-    "@vscode/test-electron": "^2.3.0"
+    "typescript": "^4.9.5"
+  },
+  "dependencies": {
+    "@google-cloud/bigquery": "^6.2.0"
   }
 }

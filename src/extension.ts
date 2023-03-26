@@ -1,26 +1,99 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
+import { BigQuery } from '@google-cloud/bigquery';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
+import { replaceParameters, replaceTables } from './replace';
+
 export function activate(context: vscode.ExtensionContext) {
+  const client = new BigQuery();
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "hello-world" is now active!');
+  let disposable = vscode.commands.registerCommand(
+    'bq-query-viewer.get-sql',
+    async () => {
+      try {
+        const input = await vscode.window.showInputBox({
+          placeHolder: "Job ID (e.g. '23f0b956-4fc3-48a7-a8d0-0ccebf9fdcd8')",
+        });
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	let disposable = vscode.commands.registerCommand('hello-world.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from Hello World!');
-	});
+        if (!input) {
+          throw new Error('Job ID is required!');
+        }
 
-	context.subscriptions.push(disposable);
+        const getJobId = (input: string) => {
+          const [_location, _jobId] = input.split('.');
+
+          if (!_jobId) {
+            const extensionConfig =
+              vscode.workspace.getConfiguration('bg-query-viewer');
+            const defaultLocation = extensionConfig.get(
+              'defaultLocation'
+            ) as string;
+            return [defaultLocation, input];
+          }
+          return [_location, _jobId];
+        };
+
+        const [location, jobId] = getJobId(input);
+
+        const job = client.job(jobId, { location });
+
+        const [metadata] = await job.getMetadata();
+
+        if (metadata.configuration.jobType !== 'QUERY') {
+          vscode.window.showErrorMessage('This job is not a query job!');
+          return;
+        }
+
+        const sql = metadata.configuration.query.query;
+        const parameters: {
+          name: string
+          parameterType: { type: string }
+          parameterValue: { value: string }
+        }[] = metadata.configuration.query.queryParameters;
+        const tables: {
+          projectId: string
+          datasetId: string
+          tableId: string
+        }[] = metadata.statistics.query.referencedTables;
+
+        const simpleFormatParameters = parameters.map(p => ({
+          name: p.name,
+          type: p.parameterType.type,
+          value: p.parameterValue.value,
+        }));
+
+        const applications: ((s: string) => string)[] = [
+          s => replaceParameters(s, simpleFormatParameters),
+          s => replaceTables(s, tables),
+        ];
+
+        const jobIdText = `-- ${jobId}`;
+
+        const paramText =
+          '-- Params:\n' +
+          simpleFormatParameters
+            .map(p => `${p.name} = ${p.value}`)
+            .map(v => `-- ${v}`)
+            .join('\n');
+
+        const renderedSql = applications.reduce((s, f) => f(s), sql);
+
+        const document = await vscode.workspace.openTextDocument({
+          language: 'sql',
+          content: [jobIdText, paramText, renderedSql].join('\n\n'),
+        });
+
+        await vscode.window.showTextDocument(document);
+      } catch (error) {
+        if (error instanceof Error) {
+          vscode.window.showErrorMessage(error.message);
+          return;
+        }
+        throw error;
+      }
+    }
+  );
+
+  context.subscriptions.push(disposable);
 }
 
-// This method is called when your extension is deactivated
 export function deactivate() {}
