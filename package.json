@@ -3,7 +3,8 @@
   "displayName": "BQ Query Viewer",
   "description": "",
   "publisher": "taq",
-  "version": "0.0.2",
+  "version": "0.0.3",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "https://github.com/taq-fujihara/vscode-bq-query-viewer.git"

@@ -1,43 +1,45 @@
+export type PossibleParameterType = 'STRING' | 'DATE' | 'INT64' | 'BOOL'
+
 interface Parameter {
-  name: string;
-  type: string;
-  value: string;
+  name: string
+  array: boolean
+  type: PossibleParameterType
+  value: string | number | boolean | string[] | number[] | boolean[]
 }
 
 interface Table {
-  projectId: string;
-  datasetId: string;
-  tableId: string;
+  projectId: string
+  datasetId: string
+  tableId: string
 }
 
-/**
- * STRINGのパラメータを置換する
- *
- * TODO テーブル名置換のように、パラメータキー中に正規表現の
- *      メタ文字のエスケープって必要？
- *
- * @param sql SQL
- * @param param 置換パラメータ
- * @returns パラメータを置換したSQL
- */
-const replaceString = (sql: string, param: Parameter) => {
-  const re = new RegExp(`@\\b${param.name}\\b`, "g");
-  return sql.replace(re, `'${param.value}'`);
-};
+const paramRegex = (name: string) => new RegExp(`@\\b${name}\\b`, 'g')
 
-const replaceInt64 = (sql: string, param: Parameter) => {
-  const re = new RegExp(`@\\b${param.name}\\b`, "g");
-  return sql.replace(re, param.value);
-};
+const mappers = {
+  STRING: (v: any) => `'${v}'`,
+  DATE: (v: any) => `date '${v}'`,
+  INT64: (v: any) => v.toString(),
+  BOOL: (v: any) => v.toString(),
+}
 
-const replaceFunctions = new Map<
-  string,
-  (sql: string, param: Parameter) => string
->([
-  ["STRING", replaceString],
-  ["DATE", replaceString],
-  ["INT64", replaceInt64],
-]);
+const mapParam = (sql: string, param: Parameter) => {
+  const re = paramRegex(param.name)
+  const mapper = mappers[param.type]
+  if (!mapper) {
+    throw new Error(`Unknown type: ${param.type}`)
+  }
+
+  let replaceBy: string
+
+  if (param.array) {
+    const _values = param.value as string[] | number[] | boolean[]
+    replaceBy = `[${_values.map(mapper).join(', ')}]`
+  } else {
+    replaceBy = mapper(param.value)
+  }
+
+  return sql.replace(re, replaceBy)
+}
 
 /**
  * パラメータの置換
@@ -48,15 +50,11 @@ const replaceFunctions = new Map<
  */
 export function replaceParameters(
   sql: string,
-  parameters: Parameter[],
+  parameters: Parameter[]
 ): string {
-  return parameters.reduce((s, p) => {
-    const f = replaceFunctions.get(p.type);
-    if (!f) {
-      throw new Error(`Unknown parameter type: ${p.type}`);
-    }
-    return f(s, p);
-  }, sql);
+  return parameters.reduce((s, param) => {
+    return mapParam(s, param)
+  }, sql)
 }
 
 /**
@@ -77,10 +75,10 @@ export function replaceParameters(
 export function replaceTables(sql: string, tables: Table[]): string {
   return tables.reduce((s, t) => {
     // TODO テーブルID中に正規表現のメタ文字が入る場合はエスケープしないとだが...
-    const normalizedTableId = t.tableId;
+    const normalizedTableId = t.tableId
     // 既にテーブルの完全名になっている場合は置換しない
-    const re = new RegExp(`(^|[^\\.]\\b)${normalizedTableId}\\b`, "g");
+    const re = new RegExp(`(^|[^\\.]\\b)${normalizedTableId}\\b`, 'g')
 
-    return s.replace(re, `$1\`${t.projectId}.${t.datasetId}.${t.tableId}\``);
-  }, sql);
+    return s.replace(re, `$1\`${t.projectId}.${t.datasetId}.${t.tableId}\``)
+  }, sql)
 }
